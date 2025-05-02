@@ -409,10 +409,16 @@ class SmartTemplateGUIPlugin(Plugin):
         self.node.get_logger().info(f'Publishing desired position: {msg}')
         self.position_publisher.publish(msg)
 
-    def shutdown_plugin(self):
-        # Shutdown QTimer
+def shutdown_plugin(self):
+    # Stop any active timers
+    if hasattr(self, 'timer'):
         self.timer.stop()
-        # Shutdown ROS node
+    # Clean up ROS2 node
+    if hasattr(self, 'node'):
         self.node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    # Cleanly release the main widget
+    if self._widget:
+        self._widget.setParent(None)
+        self._widget.deleteLater()
+        self._widget = None
+    # Do NOT call rclpy.shutdown() in the plugin — let the main app manage it
