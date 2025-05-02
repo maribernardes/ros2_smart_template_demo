@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+  
+  <xacro:macro name="zframe">
+
+    <!-- Define ZFrame position and orientation based on geometry-->
+    <xacro:property name="zframe_orientation" value="-1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 -1.0"/> <!-- Rotation matrix (row by row) -->
+    <xacro:property name="zframe_position" value="0.0 0.0590 -0.1190"/> <!-- Position (x, y, z) --> 
+
+    <!-- Combine position and orientation into a homogeneous matrix (just making things easier on 3D Slicer)-->
+    <xacro:property name="zframe_pose" value="
+      ${zframe_orientation.split(' ')[0]} ${zframe_orientation.split(' ')[1]} ${zframe_orientation.split(' ')[2]} ${zframe_position.split(' ')[0]}
+      ${zframe_orientation.split(' ')[3]} ${zframe_orientation.split(' ')[4]} ${zframe_orientation.split(' ')[5]} ${zframe_position.split(' ')[1]}
+      ${zframe_orientation.split(' ')[6]} ${zframe_orientation.split(' ')[7]} ${zframe_orientation.split(' ')[8]} ${zframe_position.split(' ')[2]}
+      0.0 0.0 0.0 1.0"/> <!-- Homogeneous transform (4x4 matrix) -->
+
+    <!-- Embed the zframe parameters -->
+    <custom_parameters>
+      <zframe_position value="${zframe_position}"/>
+      <zframe_orientation value="${zframe_orientation}"/>
+      <zframe_pose value="${zframe_pose}"/>
+    </custom_parameters>
+
+  </xacro:macro>
+
+</robot>
