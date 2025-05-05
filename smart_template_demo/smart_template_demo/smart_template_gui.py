@@ -15,7 +15,7 @@ from python_qt_binding.QtWidgets import (QWidget, QLabel, QSlider, QLineEdit, QP
 from python_qt_binding.QtCore import Qt, Signal, QTimer
 
 # Import ROS 2 message types
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 
@@ -62,7 +62,7 @@ class SmartTemplateGUIPlugin(Plugin):
             JointState, '/joint_states', self.joint_state_callback, 10)
 
         # ROS Publishers
-        self.position_publisher = self.node.create_publisher(Point, '/desired_position', 10)
+        self.position_publisher = self.node.create_publisher(PoseStamped, '/desired_position', 10)
         self.position_publisher # prevent unused variable warning
         self.command_publisher = self.node.create_publisher(String, '/desired_command', 10)
         self.command_publisher # prevent unused variable warning
@@ -402,10 +402,12 @@ class SmartTemplateGUIPlugin(Plugin):
                 self.messageBox.append(f'{self.get_ros_timestamp()} <span style="color: red;">Warning:</span> Desired value for {joint} is above the limit. Setting to maximum: {limits["max"]} mm')
             else:
                 corrected_values[joint] = value
-        msg = Point()
-        msg.x = corrected_values.get('horizontal_joint', self.current_joint_values['horizontal_joint'])
-        msg.y = corrected_values.get('insertion_joint', self.current_joint_values['insertion_joint'])
-        msg.z = corrected_values.get('vertical_joint', self.current_joint_values['vertical_joint'])
+        msg = PoseStamped()
+        msg.header.stamp = self.node.get_clock().now().to_msg()
+        msg.header.frame_id = 'needle_link'
+        msg.pose.position.x = corrected_values.get('horizontal_joint', self.current_joint_values['horizontal_joint'])
+        msg.pose.position.y = corrected_values.get('insertion_joint', self.current_joint_values['insertion_joint'])
+        msg.pose.position.z = corrected_values.get('vertical_joint', self.current_joint_values['vertical_joint'])
         self.node.get_logger().info(f'Publishing desired position: {msg}')
         self.position_publisher.publish(msg)
 

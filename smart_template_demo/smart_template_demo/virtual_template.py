@@ -5,7 +5,7 @@ import time
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
-from geometry_msgs.msg import PointStamped, Point
+from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 
@@ -21,11 +21,11 @@ import threading
 # Implements the robot service and action servers
 #
 # Publishes:   
-# '/stage/state/guide_pose'     (geometry_msgs.msg.PointStamped)  - [mm] robot frame
+# '/stage/state/guide_pose'     (geometry_msgs.msg.PoseStamped)  - [mm] robot frame
 # '/joint_states'               (sensor_msgs.msg.JointState)      - [m] robot frame
 #
 # Subscribe:
-# '/desired_position'           (geometry_msgs.msg.Point)  - [mm] robot frame
+# '/desired_position'           (geometry_msgs.msg.PoseStamped)  - [mm] robot frame
 # '/desired_command'            (std_msgs.msg.String)
 # 
 #########################################################################
@@ -70,11 +70,11 @@ class VirtualSmartTemplate(Node):
         # Current position
         timer_period_stage = 0.3  # seconds
         self.timer_stage = self.create_timer(timer_period_stage, self.timer_stage_pose_callback)
-        self.publisher_stage_pose = self.create_publisher(PointStamped, '/stage/state/guide_pose', 10)
+        self.publisher_stage_pose = self.create_publisher(PoseStamped, '/stage/state/guide_pose', 10)
         self.publisher_joint_states = self.create_publisher(JointState, '/joint_states', 10)
 
 #### Subscribed topics ###################################################
-        self.subscription_desired_position = self.create_subscription(Point, '/desired_position', self.desired_position_callback, 10)
+        self.subscription_desired_position = self.create_subscription(PoseStamped, '/desired_position', self.desired_position_callback, 10)
         self.subscription_desired_position # prevent unused variable warning
 
         self.subscription_desired_command = self.create_subscription(String, '/desired_command', self.desired_command_callback, 10)
@@ -241,8 +241,7 @@ class VirtualSmartTemplate(Node):
 
     # A request for desired position was sent
     def desired_position_callback(self, msg):
-        goal = np.array([msg.x, msg.y, msg.z])
-        #goal = np.array([msg.point.x, msg.point.y, msg.point.z])
+        goal = np.array([msg.pose.position.x, msg.pose.position.y, msg.pose.position.z])
         self.get_logger().info(f'Received request: x={goal[0]}, y={goal[1]}, z={goal[2]}')
         self.position_control(goal)
         self.start_emulated_motion_until_converged()
@@ -273,14 +272,14 @@ class VirtualSmartTemplate(Node):
         if joints_mm is not None:
             position = self.fk_model(joints_mm)
             # Construct robot message to publish             
-            msg = PointStamped()
+            msg = PoseStamped()
             msg.header.stamp = self.get_clock().now().to_msg()
-            msg.header.frame_id = 'stage'
-            msg.point.x = position[0]
-            msg.point.y = position[1]
-            msg.point.z = position[2]
+            msg.header.frame_id = 'needle_link'
+            msg.pose.position.x = position[0]
+            msg.pose.position.y = position[1]
+            msg.pose.position.z = position[2]
             self.publisher_stage_pose.publish(msg)
-            self.get_logger().debug('stage_pose [mm]: x=%f, y=%f, z=%f in %s frame'  % (msg.point.x, msg.point.y, msg.point.z, msg.header.frame_id))
+            self.get_logger().debug('smart_template [mm]: x=%f, y=%f, z=%f in %s frame'  % (msg.pose.position.x, msg.pose.position.y, msg.pose.position.z, msg.header.frame_id))
             # Update joint_state message to publish
             joint_state_msg = JointState()                
             joint_state_msg.header.stamp = self.get_clock().now().to_msg()
