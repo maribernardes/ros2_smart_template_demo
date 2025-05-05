@@ -408,7 +408,6 @@ class SmartTemplateGUIPlugin(Plugin):
         msg.pose.position.x = corrected_values.get('horizontal_joint', self.current_joint_values['horizontal_joint'])
         msg.pose.position.y = corrected_values.get('insertion_joint', self.current_joint_values['insertion_joint'])
         msg.pose.position.z = corrected_values.get('vertical_joint', self.current_joint_values['vertical_joint'])
-        self.node.get_logger().info(f'Publishing desired position: {msg}')
         self.position_publisher.publish(msg)
 
 def shutdown_plugin(self):
