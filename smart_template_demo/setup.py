@@ -15,7 +15,7 @@ setup(
         ('share/' + package_name, ['plugin.xml']),      
         ('share/' + package_name + '/launch', glob('launch/*.launch.py'))
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'tf2_geometry_msgs', 'tf2_ros', 'rqt_gui', 'rqt_gui_py', 'rclpy', 'PyQt5'],
     zip_safe=True,
     maintainer='Mariana Bernardes (BWH)',
     maintainer_email='mcostabernardesmatias@bwh.harvard.edu',

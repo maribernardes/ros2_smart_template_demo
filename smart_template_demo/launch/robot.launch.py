@@ -74,7 +74,6 @@ def generate_launch_description():
         name='robot_state_publisher',
         output='screen',
         parameters=[robot_description],
-        arguments=[description_file]
     )
 
     rviz_node = Node(

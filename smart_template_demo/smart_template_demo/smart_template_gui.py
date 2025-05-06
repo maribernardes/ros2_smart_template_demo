@@ -46,8 +46,8 @@ class SmartTemplateGUIPlugin(Plugin):
         except:
             self.node.get_logger().error("Failed to retrieve robot_description.")
 
-        self.current_joint_values = {name: 0.0 for name in self.joint_names}
-        self.desired_joint_values = {name: 0.0 for name in self.joint_names}
+        self.current_joints_mm = {name: 0.0 for name in self.joint_names}
+        self.desired_joints_mm = {name: 0.0 for name in self.joint_names}
 
         # Robot status
         self.robot_idle = True
@@ -62,10 +62,10 @@ class SmartTemplateGUIPlugin(Plugin):
             JointState, '/joint_states', self.joint_state_callback, 10)
 
         # ROS Publishers
-        self.position_publisher = self.node.create_publisher(PoseStamped, '/desired_position', 10)
-        self.position_publisher # prevent unused variable warning
-        self.command_publisher = self.node.create_publisher(String, '/desired_command', 10)
-        self.command_publisher # prevent unused variable warning
+        self.desired_position_publisher = self.node.create_publisher(PoseStamped, '/desired_position', 10)
+        self.desired_position_publisher # prevent unused variable warning
+        self.desired_command_publisher = self.node.create_publisher(String, '/desired_command', 10)
+        self.desired_command_publisher # prevent unused variable warning
 
 
         # Setup UI elements
@@ -324,7 +324,7 @@ class SmartTemplateGUIPlugin(Plugin):
                 if name in self.joint_names:
                     # Convert position from meters to millimeters
                     position_mm = position * 1000.0
-                    self.current_joint_values[name] = position_mm
+                    self.current_joints_mm[name] = position_mm
                     # Update slider value
                     slider = self.sliders[name]
                     slider_value = int(position_mm)
@@ -346,13 +346,13 @@ class SmartTemplateGUIPlugin(Plugin):
             try:
                 # Directly parse the value from the text box
                 value = float(textbox.text())
-                self.desired_joint_values[joint] = value
+                self.desired_joints_mm[joint] = value
             except ValueError:
                 self.node.get_logger().warn(f'Invalid input for {joint}')
                 self.messageBox.append(f'{self.get_ros_timestamp()} <span style="color: red;">Warning:</span> Invalid input for {joint}. Please enter a numeric value.')
                 return  # Exit early if any value is invalid
         # Send action request
-        self.send_position_request(self.desired_joint_values)
+        self.send_position_request(self.desired_joints_mm)
 
     # Handle incremental step buttons
     def handle_step_motion_button(self, direction):
@@ -371,14 +371,14 @@ class SmartTemplateGUIPlugin(Plugin):
                 step_size = float(self.insertion_step_size.text())
                 joint_name = 'insertion_joint'
                 step_modifier = 1 if direction == '+' else -1
-            self.desired_joint_values = copy.deepcopy(self.current_joint_values) # Put desired values equal to current joints
-            formatted = {k: f"{v:.2f}" for k, v in self.current_joint_values.items()}
+            self.desired_joints_mm = copy.deepcopy(self.current_joints_mm) # Put desired values equal to current joints
+            formatted = {k: f"{v:.2f}" for k, v in self.current_joints_mm.items()}
             self.node.get_logger().info(f"Current = {formatted}")
-            if joint_name is not None:                                         # Increment desired step value in the selected joint
-                self.desired_joint_values[joint_name] = self.current_joint_values[joint_name] + step_modifier * step_size
-                formatted = {k: f"{v:.2f}" for k, v in self.desired_joint_values.items()}
+            if joint_name is not None:                                     # Increment desired step value in the selected joint
+                self.desired_joints_mm[joint_name] = self.current_joints_mm[joint_name] + step_modifier * step_size
+                formatted = {k: f"{v:.2f}" for k, v in self.desired_joints_mm.items()}
                 self.node.get_logger().info(f"Desired = {formatted}")
-                self.send_position_request(self.desired_joint_values)
+                self.send_position_request(self.desired_joints_mm)
         except ValueError:
             self.node.get_logger().warn('Invalid step size value')
 
@@ -387,12 +387,12 @@ class SmartTemplateGUIPlugin(Plugin):
         msg = String()
         msg.data = cmd_string
         self.node.get_logger().info(f'Publishing command: {cmd_string}')
-        self.command_publisher.publish(msg)
+        self.desired_command_publisher.publish(msg)
 
     # Send action request to smart_template robot
-    def send_position_request(self, desired_joint_values):
+    def send_position_request(self, desired_joints_mm):
         corrected_values = {}
-        for joint, value in desired_joint_values.items():
+        for joint, value in desired_joints_mm.items():
             limits = self.joint_limits.get(joint, {})
             if 'min' in limits and value < limits['min']:
                 corrected_values[joint] = limits['min']
@@ -404,11 +404,12 @@ class SmartTemplateGUIPlugin(Plugin):
                 corrected_values[joint] = value
         msg = PoseStamped()
         msg.header.stamp = self.node.get_clock().now().to_msg()
-        msg.header.frame_id = 'needle_link'
-        msg.pose.position.x = corrected_values.get('horizontal_joint', self.current_joint_values['horizontal_joint'])
-        msg.pose.position.y = corrected_values.get('insertion_joint', self.current_joint_values['insertion_joint'])
-        msg.pose.position.z = corrected_values.get('vertical_joint', self.current_joint_values['vertical_joint'])
-        self.position_publisher.publish(msg)
+        msg.header.frame_id = 'base_link'
+        # Convert to meters
+        msg.pose.position.x = 0.001*corrected_values.get('horizontal_joint', self.current_joints_mm['horizontal_joint']) 
+        msg.pose.position.y = 0.001*corrected_values.get('insertion_joint', self.current_joints_mm['insertion_joint'])
+        msg.pose.position.z = 0.001*corrected_values.get('vertical_joint', self.current_joints_mm['vertical_joint'])
+        self.desired_position_publisher.publish(msg)
 
 def shutdown_plugin(self):
     # Stop any active timers
