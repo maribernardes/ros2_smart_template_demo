@@ -8,32 +8,51 @@ ros2 launch smart_template_demo robot.launch.py gui:=true rviz:=true
 
 ## Overview
 This repository contains:
-- ROS2 package 'smart_template_demo' for emulated virtual 3DOF SmartTemplate
-- ROS2 package 'robot_description' for publishing the SmartTemplate description from URDF
+- `smart_template_demo` for emulated virtual 3DOF SmartTemplate
+- `smart_template_description` for SmartTemplate URDF description files
 
 Currently tested for:
 - ROS2 Humble, Ubuntu 22.04 / ROS2 Jazzy, Ubuntu 22.04
 
 ## Description
-### Subscribers
-- '/desired_position', a Point with the desired end-effector position
-- '/desired_command', a String with one of the predefined command ('HOME', 'RETRACT', 'ABORT')
+### Robot 
+```
+world
+├── base_joint (fixed)
+    └── base_link
+        └── vertical_joint (Z-axis)
+            └── vertical_link
+                └── horizontal_joint (X-axis)
+                    └── horizontal_link
+                        └── insertion_joint (Y-axis)
+                            └── needle_link (end-effector)
+```
 
-### Publishers
-- '/stage/state/guide_pose', a PoseStamped with the current position of the template. It's refresh rate is given by the "timer_period"
-- '/joint_states', a JointState with the current joint values of the template. It's refresh rate is given by the "timer_period"
+| Joint Name     | Type       | Axis       | Parent Link   | Child Link    | Range (m)    |
+|----------------|------------|------------|---------------|--------------|-------------|
+| vertical_joint | prismatic | Z (0,0,1)  | base_link     | vertical_link | ±0.025      |
+| horizontal_joint | prismatic | X (1,0,0)  | vertical_link | horizontal_link | ±0.03       |
+| insertion_joint | prismatic | Y (0,1,0)  | horizontal_link | needle_link   | 0.000 → 0.115 |
+
+### Published Topics
+
+| Topic             | Type                       | Description                                                                         |
+|-------------------|----------------------------|-------------------------------------------------------------------------------------|
+| `/end_effector_pose` | `geometry_msgs/PoseStamped` | Current needle tip pose in the world frame, computed via TF transform from `needle_link` |
+| `/joint_states`   | `sensor_msgs/JointState`   | Current joint values (3 prismatic joints) in meters, as expected by standard ROS tools |
+
+### Subscribed Topics
+
+| Topic             | Type                       | Description                                                                          |
+|-------------------|----------------------------|--------------------------------------------------------------------------------------|
+| `/desired_position` | `geometry_msgs/PoseStamped` | Target pose to align the robot tip to, typically in the world or scanner frame         |
+| `/desired_command` | `std_msgs/String`          | Predefined motion commands: `HOME`, `RETRACT`, or `ABORT`                             |
 
 ### Launch file
 - robot.launch.py
-  * Argument: "rviz"
-    * false - NO rviz
-    * true - loads rviz
-  * Argument: "gui"
-    * false - NO rqt GUI custom plugin
-    * true - loads rqt GUI custom plugin
-
-## Usage <a name="usage"></a>
-## Axis
-- Left-right (horizontal): x
-- Inferior-superior (insertion): y
-- Anterior-posterior (vertical): z
+  * Argument: `rviz`
+    * `false` - NO rviz
+    * `true` - loads rviz
+  * Argument: `gui`
+    * `false` - NO rqt GUI custom plugin
+    * `true` - loads rqt GUI custom plugin
