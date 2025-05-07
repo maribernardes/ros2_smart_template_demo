@@ -1,4 +1,4 @@
-# 3DOF SmartTemplate demo package: ros2_smart_template_demo
+# 3DOF SmartTemplate demo package:
 
 ## Quick demo test
 To give it a try on simulation mode, launch:
