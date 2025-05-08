@@ -50,9 +50,27 @@ class JointInfo:
         self.m_to_count.append(m_to_count)
         self.count_to_m.append(count_to_m)
 
-    def index(self, joint_name: str) -> int:
-        return self.names.index(joint_name)
-    
+    # Sort the joints by the desired order
+    def sort_by_order(self, desired_order):
+        order_index = {name: i for i, name in enumerate(desired_order)}
+        combined = list(zip(
+            self.names,
+            self.channels,
+            self.limits_lower,
+            self.limits_upper,
+            self.m_to_count,
+            self.count_to_m
+        ))
+        combined.sort(key=lambda x: order_index.get(x[0], float('inf')))
+        (
+            self.names,
+            self.channels,
+            self.limits_lower,
+            self.limits_upper,
+            self.m_to_count,
+            self.count_to_m
+        ) = map(list, zip(*combined))
+
 class VirtualSmartTemplate(Node):
 
     def __init__(self):
@@ -62,7 +80,9 @@ class VirtualSmartTemplate(Node):
     #### Get joint limits from robot description ###################################################
         self.declare_parameter('robot_description', '')
         urdf_str = self.get_parameter('robot_description').get_parameter_value().string_value
-        self.joints = self.parse_joint_info_from_urdf(urdf_str)
+        desired_order = ['horizontal_joint', 'insertion_joint', 'vertical_joint'] # Matching X,Y,Z order for cartesian coordinates
+        self.get_logger().info(f"URDF string: {urdf_str}")
+        self.joints = self.parse_joint_info_from_urdf(urdf_str, desired_order)
         if self.joints is None:
             self.get_logger().fatal("Joint configuration could not be loaded from URDF.")
             return 
@@ -100,67 +120,68 @@ class VirtualSmartTemplate(Node):
 
 #### Kinematic model ###################################################
 
-    # Forward kinematics
+# Although the robot's joints are decoupled and each controls a single degree of freedom (DoF),
+# defining explicit forward and inverse kinematics functions enhances clarity and modularity.
+# This setup facilitates potential future extensions, such as integrating more complex kinematics,
+# handling coupled joints, or interfacing with external kinematic solvers.
+    
+    # Forward kinematics: Converts joint positions to end-effector Cartesian coordinates.
     def fk_model(self, joints: np.ndarray) -> np.ndarray:
-        x = joints[0]    # horizontal_joint  (channel A)
-        y = joints[1]    # insertion_joint   (channel B) 
-        z = joints[2]    # vertical_joint    (channel C)
+        x = joints[0]    # horizontal_joint
+        y = joints[1]    # insertion_joint
+        z = joints[2]    # vertical_joint 
         return np.array([x, y, z], dtype=float)
-
-    # Inverse kinematics
+    
+    # Inverse kinematics: Computes joint positions required to achieve a desired end-effector position.
     def ik_model(self, position: np.ndarray) -> np.ndarray:
-        horizontal_joint = position[0]  # horizontal_joint  (channel A)
-        insertion_joint = position[1]   # insertion_joint   (channel B) 
-        vertical_joint = position [2]   # vertical_joint    (channel C)
+        horizontal_joint = position[0]  # X
+        insertion_joint = position[1]   # Y
+        vertical_joint = position [2]   # Z
         return np.array([horizontal_joint, insertion_joint, vertical_joint], dtype=float)
     
 #### Internal functions ###################################################
 
     # Load joint information from URDF
-    def parse_joint_info_from_urdf(self, urdf_str: str) -> JointInfo:
-        raw_channels = {}
-        raw_limits = {}
-        raw_m_to_count = {}
+    def parse_joint_info_from_urdf(self, urdf_str, desired_order):
         joint_info = JointInfo()
         try:
             root = ET.fromstring(urdf_str)
             for joint_elem in root.findall('joint'):
                 name = joint_elem.attrib.get('name')
-                if not name:
+                if not name or joint_elem.attrib.get('type') == 'fixed':
                     continue
                 # Channel
                 channel_elem = joint_elem.find('channel')
-                if channel_elem is not None:
-                    raw_channels[name] = channel_elem.text.strip()
+                channel = channel_elem.text.strip() if channel_elem is not None else None
                 # Limits
                 limit_elem = joint_elem.find('limit')
                 if limit_elem is not None:
                     try:
                         lower = float(limit_elem.attrib.get('lower', 'nan'))
                         upper = float(limit_elem.attrib.get('upper', 'nan'))
-                        raw_limits[name] = (lower, upper)
                     except ValueError:
-                        self.get_logger().warn(f"Invalid limit values for joint '{name}'")
+                        print(f"Invalid limit values for joint '{name}'")
+                        lower, upper = float('-inf'), float('inf')
+                else:
+                    lower, upper = float('-inf'), float('inf')
                 # m_to_count
                 m_elem = joint_elem.find('m_to_count')
                 if m_elem is not None:
                     try:
-                        m = float(m_elem.text.strip())
-                        raw_m_to_count[name] = m
+                        m_to_count = float(m_elem.text.strip())
                     except ValueError:
-                        self.get_logger().warn(f"Invalid m_to_count value for joint '{name}'")
+                        print(f"Invalid m_to_count value for joint '{name}'")
+                        m_to_count = 1.0
+                else:
+                    m_to_count = 1.0
+                count_to_m = 1.0 / m_to_count if m_to_count != 0.0 else 0.0
+                joint_info.add(name, channel, lower, upper, m_to_count, count_to_m)
+                self.get_logger().info(f"{name}: channel={channel}, limits=({lower:.2f}, {upper:.2f}) m, "f"m_to_count={m_to_count}, count_to_m={count_to_m}")
         except ET.ParseError as e:
-            self.get_logger().error(f"Failed to parse URDF: {e}")
+            print(f"Failed to parse URDF: {e}")
             return None
-        # Sort by channel order (A, B, C, ...)
-        sorted_joints = sorted(raw_channels.items(), key=lambda item: item[1])
-        for name, channel in sorted_joints:
-            lower, upper = raw_limits.get(name, (float('-inf'), float('inf')))
-            m_to_count = raw_m_to_count.get(name, 1.0)
-            count_to_m = 1.0 / m_to_count if m_to_count != 0.0 else 0.0
-            joint_info.add(name, channel, lower, upper, m_to_count, count_to_m)
-            self.get_logger().info(f"{name}: channel={channel}, limits=({lower:.2f}, {upper:.2f}) m, "
-                        f"m_to_count={m_to_count}, count_to_m={count_to_m}")
+        # Sort JointInfo based on desired_order
+        joint_info.sort_by_order(desired_order)
         return joint_info
 
     # Get current robot joint values [m]
@@ -173,25 +194,12 @@ class VirtualSmartTemplate(Node):
         self.get_logger().info(f'Joint errors [m]: {err_joints}')
         return (err_joints)
 
-    # Get current robot position
+    # Get current end-effector position
     def get_position(self) -> np.ndarray:
         joints = self.get_joints()
         if joints is None:
             return None
         return self.fk_model(joints)
-                        
-    # Get current robot position error
-    def get_position_error(self) -> np.ndarray:
-        err_joints = self.get_joints_err()
-        if err_joints is None:
-            return None
-        err_position = self.fk_model(err_joints)
-        self.get_logger().info(f'Error (joint/m): {err_joints}, FK error: {err_position}')
-        return err_position
-
-    # Calculate euclidean error
-    def error_3d(self, err: np.ndarray) -> float:
-        return float(np.linalg.norm(err))
     
     # TODO: Check best implementation for this using Galil
     # Abort any ongoing motion (stop where it is)

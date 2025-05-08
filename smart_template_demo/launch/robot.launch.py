@@ -73,7 +73,7 @@ def generate_launch_description():
         executable='robot_state_publisher',
         name='robot_state_publisher',
         output='screen',
-        parameters=[robot_description],
+        parameters=[robot_description]
     )
 
     rviz_node = Node(
@@ -86,7 +86,7 @@ def generate_launch_description():
     )
 
     virtual_robot_node = Node(
-        package="smart_template_demo",
+        package='smart_template_demo',
         executable="virtual_template",
         parameters=[robot_description]
     )  
