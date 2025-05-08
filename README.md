@@ -12,7 +12,7 @@ This repository contains:
 - `smart_template_description` for SmartTemplate URDF description files
 
 Currently tested for:
-- ROS2 Humble, Ubuntu 22.04 / ROS2 Jazzy, Ubuntu 22.04
+- ROS2 Humble, Ubuntu 22.04 / ROS2 Jazzy, Ubuntu 24.04
 
 ## Description
 ### Robot 
