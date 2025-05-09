@@ -41,7 +41,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${-pi/2}"/>
         <geometry>
-          <mesh filename="package://smart_template_description/meshes/needle_link_default.stl"/>
+          <mesh filename="package://smart_template_description/meshes/needle_link_smartneedle.stl"/>
         </geometry>
         <material name="silver"/>
       </visual>
@@ -75,7 +75,7 @@
       <parent link="horizontal_link"/>
       <child link="needle_link"/>
       <axis xyz="0.0 1.0 0.0"/>
-      <limit upper="0.115" lower="0.0" effort="100" velocity="100"/>
+      <limit upper="0.165" lower="0.0" effort="100" velocity="100"/>
       <channel>B</channel>
       <m_to_count>-1.5748031</m_to_count>
     </joint>
